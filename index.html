@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Xinver Corp | Chess Mobile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root { --blue: #3b82f6; --dark: #020617; }
+        body { 
+            background-color: var(--dark); 
+            color: white; 
+            font-family: sans-serif; 
+            margin: 0; 
+            overflow: hidden; /* Evita que la pantalla rebote al jugar */
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* TABLERO RESPONSIVO */
+        #board-container {
+            width: 100vw;
+            height: 100vw;
+            max-width: 500px;
+            max-height: 500px;
+            margin: auto;
+            padding: 5px;
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 12.5%);
+            grid-template-rows: repeat(8, 12.5%);
+            width: 100%;
+            height: 100%;
+            border: 4px solid #1e293b;
+            border-radius: 8px;
+            touch-action: none;
+        }
+
+        .square {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 8vw; /* Tamaño de pieza basado en el ancho del cel */
+        }
+        @media (min-width: 500px) { .square { font-size: 40px; } }
+
+        .white-sq { background-color: #e2e8f0; }
+        .black-sq { background-color: #475569; }
+
+        /* PIEZAS */
+        .piece {
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .white-p { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+        .black-p { color: #000; }
+
+        /* SELECCIÓN Y MOVIMIENTOS */
+        .selected { background-color: rgba(59, 130, 246, 0.6) !important; }
+        .hint::after {
+            content: '';
+            width: 25%;
+            height: 25%;
+            background: rgba(59, 130, 246, 0.4);
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="p-4 flex justify-between items-center bg-slate-900/50 border-b border-slate-800">
+        <div>
+            <h1 class="text-lg font-black text-blue-500 uppercase leading-none">Xinver</h1>
+            <span class="text-[8px] tracking-[0.2em] text-slate-500 uppercase">Ajedrez Estratégico</span>
+        </div>
+        <div id="turn-indicator" class="px-4 py-1 rounded-full bg-white text-black text-xs font-bold uppercase transition-all">
+            Blancas
+        </div>
+    </div>
+
+    <div id="board-container">
+        <div id="board"></div>
+    </div>
+
+    <div class="p-6 flex justify-around items-center border-t border-slate-900 bg-slate-950/80">
+        <button onclick="location.reload()" class="text-xs font-bold text-slate-500 uppercase tracking-widest">Reiniciar</button>
+        <div class="h-1 w-20 bg-slate-800 rounded-full"></div>
+        <span class="text-[8px] mono text-slate-700">NODE_VILLAVICENCIO</span>
+    </div>
+
+    <script>
+        const boardEl = document.getElementById('board');
+        const turnEl = document.getElementById('turn-indicator');
+        let turn = 'white';
+        let selectedSq = null;
+        
+        // Piezas Unicode
+        const pMap = {
+            r: '♜', n: '♞', b: '♝', q: '♛', k: '♚', p: '♟',
+            R: '♖', N: '♘', B: '♗', Q: '♕', K: '♔', P: '♙'
+        };
+
+        const layout = [
+            ['r','n','b','q','k','b','n','r'],
+            ['p','p','p','p','p','p','p','p'],
+            ['','','','','','','',''],
+            ['','','','','','','',''],
+            ['','','','','','','',''],
+            ['','','','','','','',''],
+            ['P','P','P','P','P','P','P','P'],
+            ['R','N','B','Q','K','B','N','R']
+        ];
+
+        function init() {
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const sq = document.createElement('div');
+                    sq.className = `square ${(r+c)%2===0 ? 'white-sq' : 'black-sq'}`;
+                    sq.dataset.pos = `${r}-${c}`;
+                    
+                    const char = layout[r][c];
+                    if (char) {
+                        const isWhite = char === char.toUpperCase();
+                        sq.innerHTML = `<span class="piece ${isWhite ? 'white-p' : 'black-p'}">${pMap[char]}</span>`;
+                    }
+                    
+                    sq.onclick = () => handleClick(sq);
+                    boardEl.appendChild(sq);
+                }
+            }
+        }
+
+        function handleClick(sq) {
+            const piece = sq.querySelector('.piece');
+            
+            // Si ya hay algo seleccionado, intentar mover
+            if (selectedSq) {
+                if (sq === selectedSq) {
+                    deselect();
+                    return;
+                }
+                
+                // Mover pieza (Lógica simplificada: mueve a cualquier lado por ahora)
+                movePiece(selectedSq, sq);
+                deselect();
+                return;
+            }
+
+            // Seleccionar si es tu turno
+            if (piece) {
+                const isWhite = piece.classList.contains('white-p');
+                if ((turn === 'white' && isWhite) || (turn === 'black' && !isWhite)) {
+                    selectedSq = sq;
+                    sq.classList.add('selected');
+                }
+            }
+        }
+
+        function movePiece(from, to) {
+            const pieceHtml = from.innerHTML;
+            from.innerHTML = '';
+            to.innerHTML = pieceHtml;
+            
+            turn = turn === 'white' ? 'black' : 'white';
+            turnEl.innerText = turn === 'white' ? 'Blancas' : 'Negras';
+            turnEl.style.backgroundColor = turn === 'white' ? '#fff' : '#334155';
+            turnEl.style.color = turn === 'white' ? '#000' : '#fff';
+        }
+
+        function deselect() {
+            if (selectedSq) selectedSq.classList.remove('selected');
+            selectedSq = null;
+        }
+
+        init();
+    </script>
+</body>
+</html>
